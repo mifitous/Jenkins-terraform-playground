@@ -1,0 +1,55 @@
+def customImage
+
+pipeline {
+    agent none
+
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        TF_IN_AUTOMATION      = '1'
+    }
+
+    stages {
+        stage('Build') {
+            agent { node { label 'Build' } }
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker') {
+                        customImage = docker.build('mfitoussi/pythonflaskservice:2.0', 'TestDockerServiceK8s/PythonFlaskService/')
+                        // save the image as tar file in some network shared folder for step #2 on different server
+                        sh 'docker save mfitoussi/pythonflaskservice:2.0 | gzip > "${HOME}/pythonflaskservice.tgz"'
+                    }
+                }
+            }
+        }
+
+        stage('Push') {
+            agent { node { label 'System' } }
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker') {
+                        // load the image from tar file from some network shared folder for step #2 on different server
+                        // we could have use as well ssh is we knew the 1st server name etc...
+                        sh 'docker load -i "${HOME}/pythonflaskservice.tgz"'
+                        /* Push the container to the custom Registry */
+                        customImage.push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            agent { node { label 'Build' } }
+            steps {
+                script {
+                    withCredentials([file(credentialsId: 'KUBECONFIG', variable: 'KUBECONFIG')]) {
+                        sh 'kubectl -n default apply -f TestDockerServiceK8s/deployment.yml'
+                        sh 'kubectl -n default apply -f TestDockerServiceK8s/clusterip.yml'
+                        sh 'kubectl -n default apply -f TestDockerServiceK8s/nodeport.yml'
+                        sh 'kubectl -n default apply -f TestDockerServiceK8s/loadbalancer.yml'
+                    }
+                }
+            }
+        }
+    }
+}

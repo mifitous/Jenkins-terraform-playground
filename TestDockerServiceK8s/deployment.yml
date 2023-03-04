@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pythonflaskservice-app 
+  labels:
+    app: pythonflaskservice-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+        app: pythonflaskservice-app
+  template:
+    metadata:
+      labels:
+        app: pythonflaskservice-app
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - arm64
+      containers:
+        - name: pythonflaskservice-app
+          image: mfitoussi/pythonflaskservice:2.0
+          imagePullPolicy: Always
+          ports:
+            - name: https
+              containerPort: 443
+              protocol: TCP
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+

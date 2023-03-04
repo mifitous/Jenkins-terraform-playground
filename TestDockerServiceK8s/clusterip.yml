@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pythonflaskservice-cluster-ip
+  labels:
+    app: pythonflaskservice-app
+spec:
+  type: ClusterIP
+  selector:
+    app: pythonflaskservice-app
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 443
